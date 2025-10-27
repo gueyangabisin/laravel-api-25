@@ -10,11 +10,11 @@ return new class extends Migration
      # Run the migrations.
     public function up(): void
     {
-        Schema::create('books', function (Blueprint $table){
+        Schema::create('rbooks', function (Blueprint $table){
             $table->id();
             $table->string('title');
             $table->string('author');
-            $table->foreignId('author_id')->constrained('authors')->onDelete('restrict');
+            $table->foreignId('author_id')->constrained('rauthors')->onDelete('restrict');
             $table->integer('published_year');
             $table->timestamps();
 
@@ -24,6 +24,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExixts('books');
+        Schema::dropIfExixts('rbooks');
     }
 };
