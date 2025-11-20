@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\ProductCategoryController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductVariantController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -13,5 +15,7 @@ Route::prefix('v1')->group(function () {
         return 'Halo, Laravel';
     });
 
-    Route::resource('product-categories', ProductCategoryController::class);
+    Route::resource('products', ProductController::class);
+    Route::resource('categories', ProductCategoryController::class);
+    Route::resource('variants', ProductVariantController::class);
 });
