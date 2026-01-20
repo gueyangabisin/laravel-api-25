@@ -2,124 +2,72 @@
 
 namespace App\Http\Controllers\Api;
 
-use stdClass;
+use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Tymon\JWTAuth\Facades\JWTAuth;
-use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        Log::info('User Registration Start', ['email' => $request->email]);
-
-        $validatedData = $request->validate([
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:8',
-            'name' => 'required|max:255',
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
         ]);
 
-        DB::beginTransaction();
-        try {
-
-            $data = User::create($validatedData);
-
-            DB::commit();
-
-            // $token = JWTAuth::attempt($request->only('email', 'password'));
-
-            // $userResponse = new stdClass();
-            // $userResponse->token = $token;
-            // $userResponse->token_expires_in = JWTAuth::factory()->getTTL() * 60;
-            // $userResponse->token_type = 'bearer';
-            Log::info('User Registration Success', ['user_id' => $data->id, 'email' => $data->email]);
-
-            return response()->json(['message' => 'Sign up successfully', 'data' => null], 201);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::warning('User Registration Failure: Validation failed', ['email' => $request->email, 'errors' => $e->errors()]);
-
-            DB::rollBack();
-
-            return response()->json(['message' => $e->errors()], 422);
-        } catch (\Throwable $e) {
-            DB::rollBack();
-
-            Log::error('User Registration Error', ['email' => $request->email, 'error' => $e->getMessage()]);
-
-            return response()->json(['message' => $e->getMessage()], 500);
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
         }
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'data' => $user,
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+        ]);
     }
 
     public function login(Request $request)
     {
-        Log::info('User Login Start', ['email' => $request->email]);
+        if (!Auth::attempt($request->only('email', 'password'))) {
+            return response()->json([
+                'message' => 'Unauthorized'
+            ], 401);
+        }
 
-        $validatedData = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required|min:8',
+        $user = User::where('email', $request['email'])->firstOrFail();
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Hi ' . $user->name . ', welcome to home',
+            'access_token' => $token,
+            'token_type' => 'Bearer',
         ]);
-
-        $user = User::where('email', $validatedData['email'])->first();
-
-        if (!$user) {
-            Log::warning('User Login Failure: User not found', ['email' => $validatedData['email']]);
-
-
-            return response()->json(['message' => 'Username not found', 'data' => null], 404);
-        }
-
-        if (!$token = JWTAuth::attempt(['email' => $user->email, 'password' => $validatedData['password']])) {
-            Log::warning('User Login Failure: Invalid credentials', ['email' => $validatedData['email']]);
-
-            return response()->json(['message' => 'Invalid credentials'], 401);
-        }
-
-        $userResponse = new stdClass();
-        $userResponse->token = $token;
-        $userResponse->token_expires_in = JWTAuth::factory()->getTTL() * 60;
-        $userResponse->token_type = 'bearer';
-
-        Log::info('User Login Success', ['email' => $user->email]);
-
-        return response()->json(['message' => 'Sign in successfully', 'data' => $userResponse], 201);
     }
 
-    public function logout(Request $request)
+    public function logout()
     {
-        Log::info('User Logout Start');
+        auth()->user()->tokens()->delete();
 
-        $user = auth()->user();
-
-        if ($user) {
-            auth()->logout();
-            Log::info('User Logout Success', ['user_id' => $user->id]);
-        } else {
-            Log::warning('User Logout Failure: No authenticated user');
-        }
-
-        return response()->json(['message' => 'Logout successfully.', 'data' => null], 200);
+        return response()->json([
+            'message' => 'You have successfully logged out and the token was successfully deleted'
+        ]);
     }
 
-    public function refresh(Request $request)
+    public function me(Request $request)
     {
-        Log::info('Token Refresh Start');
-
-        try {
-            $token = $request->bearerToken();
-            $newToken = JWTAuth::refresh($token);
-
-            Log::info('Token Refresh Success');
-
-            return response()->json(['message' => 'Token refreshed successfully', 'data' => ['token' => $newToken]], 200);
-        } catch (\Throwable $th) {
-            Log::error('Token Refresh Error', ['error' => $th->getMessage()]);
-
-            return response()->json(['message' => $th->getMessage()], 500);
-        }
+        return $request->user();
     }
 }
